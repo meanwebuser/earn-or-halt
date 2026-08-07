@@ -1,0 +1,15 @@
+FROM python:3.13-alpine
+
+RUN apk add --no-cache ca-certificates openssl
+WORKDIR /seed
+COPY bootstrap.sh /seed/bootstrap.sh
+COPY bootstrap /seed/bootstrap
+RUN chmod +x /seed/bootstrap.sh /seed/bootstrap/*.py
+
+ENV EOH_RELEASE_PUBKEY=/keys/release-public.pem \
+    EOH_INSTALL_ROOT=/install \
+    EOH_DATA_DIR=/data \
+    EOH_FOREGROUND=1
+
+VOLUME ["/keys", "/registry", "/install", "/data"]
+ENTRYPOINT ["/seed/bootstrap.sh"]

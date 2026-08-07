@@ -1,0 +1,18 @@
+services:
+  earn-or-halt:
+    build: .
+    ports:
+      - "8787:8787"
+    environment:
+      EOH_PROVIDER: mock
+      EOH_STARTING_CREDIT_CENTS: 100
+      EOH_GRACE_JOBS: 3
+      EOH_MINIMUM_MARGIN_PERCENT: 20
+      EOH_DAILY_COST_CAP_CENTS: 500
+      EOH_API_TOKEN: ${EOH_API_TOKEN:-}
+    volumes:
+      - earn-or-halt-data:/data
+    restart: "no"
+
+volumes:
+  earn-or-halt-data:
