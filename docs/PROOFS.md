@@ -1,146 +1,85 @@
-# Доказательства и инварианты
+# Доказуемые свойства и границы
 
-## Цель
+Этот документ перечисляет только свойства, которые следуют из текущего
+исходника и тестов. Это не формальная security proof распределённого
+протокола.
 
-Сформулировать и обосновать минимальный набор инвариантов, при которых
-`earn-or-halt` остаётся живым и атакоустойчивым в условиях:
+## Economic policy
 
-- whale-атак (большой депозит, чтобы вытеснить честную версию);
-- подделки выручки или трат;
-- форка протокола;
-- отказа умирать по таймауту;
-- Sybil-атак (множество дешёвых версий).
+Для stats из SQLite policy вычисляет:
 
-Формальное утверждение: при соблюдении инвариантов **I1–I6** эти атаки
-становятся либо невозможными, либо экономически невыгодными.
+~~~
+available = starting_credit_cents + revenue_cents - cost_cents
+margin = (revenue_cents - cost_cents) / revenue_cents
+~~~
 
-## Модель угроз
+Тесты [tests/test_policy.py](../tests/test_policy.py) подтверждают:
 
-Атакующий может:
+- продолжение в grace period;
+- halt при недостатке available credit;
+- halt при margin ниже порога после grace;
+- halt при daily cost cap;
+- приоритет external halt reason.
 
-- **A1:** иметь неограниченный бюджет на депозиты;
-- **A2:** знать исходный код любой версии;
-- **A3:** запускать любое число своих версий;
-- **A4:** отказываться умирать по таймауту;
-- **A5:** форкнуть протокол с новыми правилами;
-- **A6:** перехватывать сетевой трафик.
+Orchestrator читает persistent halt reason перед следующей job. При policy
+halt он устанавливает reason, пишет финальное runtime state, останавливает
+server и возвращает 20. Это локальный control flow, а не consensus.
 
-Атакующий **не может**:
+## Persistence and ledger
 
-- подделать подпись чужого приватного ключа (стойкая криптография);
-- изменить публичный реестр задним числом (стойкость блокчейна/реестра).
+SQLite schema в [earn_or_halt/storage.py](../earn_or_halt/storage.py):
 
-## Формальные определения
+- jobs проходят queued → running → succeeded/failed;
+- успешная job в одной транзакции записывает result, actual cost и
+  configured price как revenue;
+- failed provider call может записать failure cost;
+- ledger принимает только revenue, cost, credit и refund;
+- stats вычитает refund из revenue и считает profit = revenue - cost;
+- halt reason хранится в meta table.
 
-- `V = (pubkey_V, code_hash_V, state_V)` — версия с публичным ключом,
-  хэшем кода и подписанным состоянием.
-- `Receipt R = {issuer, recipient, job_id, amount, timestamp, payload_hash, sig_R}` —
-  квитанция, где `sig_R` — подпись `issuer` над канонической
-  сериализацией остальных полей.
-- `EarnedReceipt E = Receipt`, где `issuer = client_pubkey`,
-  `recipient = V.pubkey_V`, `sig_E` валидна, `E` не истёк.
-- `ExpenseReceipt X = Receipt`, где `issuer = provider_pubkey`,
-  `recipient = V.pubkey_V`, `sig_X` валидна, `X` не истёк.
-- `Deposit D = (tx_hash, V.pubkey_V, amount, timestamp)` — входящая
-  транзакция в кошелёк версии, не имеющая соответствующего
-  `EarnedReceipt`.
-- `earned_profit(V) = Σ E.amount − Σ X.amount` по всем валидным `E, X`
-  за окно.
-- `balance(V) = earned_profit(V) + Σ D.amount`.
-- `rank_signal(V) = f(earned_profit(V))` для строго монотонной `f`
-  (например, `f = identity`).
+Тесты [tests/test_storage.py](../tests/test_storage.py) проверяют job/ledger
+lifecycle и request/clear halt.
 
-## Инварианты
+## Signed resurrection chain
 
-**I1 (Anti-whale).** `rank_signal(V) = f(earned_profit(V))`. Никакая
-функция от `balance` или `deposits` не входит в `rank_signal`.
+В [bootstrap.sh](../bootstrap.sh) реализованы последовательные gates:
 
-**I2 (No double-count).** Каждый `Receipt` имеет уникальный
-`(issuer, job_id)`. Повторное появление той же пары в реестре
-отклоняется.
+1. manifest schema и поля проверяются;
+2. artifact fetch ограничен поддержанными schemes;
+3. SHA-256 bytes должен совпасть с manifest;
+4. OpenSSL проверяет подпись точных archive bytes public key;
+5. safe extractor отвергает traversal и опасные tar entry types;
+6. release install происходит в versioned directory, затем меняется symlink
+   current.
 
-**I3 (Halt is final).** `HaltRecord = {V.pubkey_V, timestamp, sig_V}`.
-После публикации `HaltRecord` все новые `Receipt` с
-`recipient = V.pubkey_V` отклоняются другими версиями.
+tests/test_safe_extract.py проверяет обычный файл и path traversal. Полный
+signed smoke path дополнительно проверяет tampered artifact rejection.
 
-**I4 (Heartbeat).** Живая версия публикует
-`Heartbeat = {V.pubkey_V, state_hash, timestamp, sig_V}` каждые
-`HB_PERIOD` (константа, 1 час). Отсутствие heartbeat дольше `TIMEOUT`
-(константа, 30 дней) → другие версии трактуют V как halted
-(эквивалентно I3).
+## Что не следует выводить
 
-**I5 (Pinned protocol).** Клиенты и провайдеры подписывают квитанции
-только если `code_hash` версии совпадает с хэшем текущего релиза.
-Версии с другим `code_hash` не получают валидных `Receipt`.
+### Нет signed customer/provider receipts
 
-**I6 (Receipt expiry).** `Receipt` старше `RECEIPT_TTL` (константа,
-30 дней) не учитывается в `earned_profit` и не принимается реестром.
+Поле price_cents приходит от API caller, а mock/OpenAI-compatible provider
+возвращает только result и объявленную cost. Runtime не проверяет подпись
+платежа клиента и не получает cryptographic provider receipt.
 
-## Гарантии
+### Нет on-chain economics
 
-- **G1 (Whale-атака невозможна).** Из I1. `deposits` не входят в
-  `rank_signal`. Whale с $1M deposits и $0 earned_profit не попадает
-  в топ, независимо от размера депозита.
-- **G2 (Подделка выручки невозможна).** Из определения `EarnedReceipt`
-  (требует подпись клиента) и I2/I6.
-- **G3 (Подделка трат невозможна).** Из определения `ExpenseReceipt`
-  (требует подпись провайдера) и I2/I6.
-- **G4 (Replay невозможен).** Из I2 и I6.
-- **G5 (Зомби-версии отрезаны).** Из I3 + I4. Версия, отказавшаяся
-  умирать, всё равно отрезана от роутинга и приёма чеков.
-- **G6 (Форки не зарабатывают).** Из I5. Версия с другим `code_hash`
-  не получает валидных чеков от пиннованных клиентов и провайдеров.
-- **G7 (Sybil ограничен).** Из I1 + I5. Каждая новая версия — это
-  новый ключ, но без `code_hash` текущего релиза валидных чеков не
-  получит. Запустить 1000 дешёвых форков — это 1000 ключей без единого
-  чека, ни один не войдёт в топ.
+requirements-eth.txt и publish_eth_pointer.py — опциональный pointer
+publisher. Основной runtime не отправляет revenue/cost в Ethereum. Blockscout
+pointer adapter публикует location metadata, а не consensus о прибыльности.
 
-## Что инварианты не покрывают
+### Нет kill switch через bootstrap
 
-- **X1 (Провайдерская коррупция).** Если провайдеры сговариваются
-  подписывать фиктивные `ExpenseReceipt`, G3 нарушается. Защита —
-  репутация провайдеров, она за пределами протокола.
-- **X2 (51% на реестр).** Если атакующий контролирует большинство
-  реестра, инварианты I1–I6 не спасают. Это угроза блокчейна, не наша.
-- **X3 (Hardcoded N=3 при пустом ecosystem).** Если в системе меньше
-  3 честных версий, `rank_signal` теряет смысл — топ всё равно
-  заполняется кем попало. Это стартовый риск, не свойство протокола.
-- **X4 (Клиентский сговор).** Если клиенты сговариваются платить
-  фейковой версии за пустую работу, G2 нарушается. Защита — репутация
-  клиентов.
+Bootstrap может запустить только artifact, прошедший local hash/signature
+checks. Он не доказывает, что новый release экономически лучше, и не
+переписывает локальный halt reason без отдельного operator action.
 
-## Enforcement (как инварианты поддерживаются)
+### Нет доказательства безопасности Docker/public deployment
 
-- **Распределённый, не центральный.** Каждая честная версия проверяет
-  инварианты локально и отказывается взаимодействовать с нарушителями.
-- **Ejection через игнорирование.** Не kill switch, а социальное
-  исключение: halted-версиям не роутят работу, не признают их чеки, не
-  учитывают их в `rank_signal`.
-- **Константы протокола, не env.** `TIMEOUT = 30 дней`, `RECEIPT_TTL = 30 дней`,
-  `HB_PERIOD = 1 час` — захардкожены в исходник, подписаны в релизе.
-  Чтобы поменять — нужен новый релиз, прошедший тот же selection.
+Dockerfile и compose описывают packaging; в этой проверке образ не собирался,
+а network/auth/reverse proxy configuration остаются deployment scope.
 
-## Открытые вопросы
-
-1. **Стартовый кредит новой версии.** Депозит? Заём от текущего топа?
-   Earned через первую работу? Любой из этих вариантов имеет разные
-   последствия для G7.
-2. **Источник «well-known» провайдеров.** Сертификаты? Отдельный
-   реестр? Без этого X1 остаётся широко открытым.
-3. **Как клиент узнаёт `code_hash` текущего релиза.** Через блокчейн
-   pointer (Blockscout), через out-of-band канал, или оба?
-4. **Whale-форк релиза.** Если whale форкает протокол и пиннует себя
-   как «текущий релиз», G6 держится, только если пиннование
-   распределено, а не под контролем одной стороны.
-5. **Переходные состояния при смене релиза.** Кто фиксирует момент
-   переключения `code_hash`? Если whale форкнул, его клиенты
-   подписывают чеки «новой» версии, но старые клиенты — нет. Как
-   разрешается конфликт?
-
-## Сводка в одну строку
-
-> **`rank_signal(V) = f(earned_profit(V))`**, и всё, что попадает в
-> `earned_profit`, проверяется подписями клиента или провайдера,
-> уникальностью, сроком годности, и `code_hash` текущего релиза.
-> Whale-атака, подделка, replay, форк, зомби — закрыты. Коррупция
-> реестра и провайдеров — за пределами протокола.
+Итого: доказуемы локальные policy/storage переходы и целостность signed
+artifact path; независимая оплата, provider truth, public availability и
+распределённая selection остаются будущими границами.

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Earn or Halt runtime overview</title>
+  <desc id="desc">A local economic governor checks a queued job before running it, while a signed release bootstrap verifies bytes before launch.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#15231b"/>
+      <stop offset="1" stop-color="#244936"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#07140c" flood-opacity=".4"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="630" rx="28" fill="url(#bg)"/>
+  <circle cx="1070" cy="90" r="180" fill="#86efac" opacity=".11"/>
+  <circle cx="100" cy="590" r="200" fill="#fbbf24" opacity=".10"/>
+  <text x="72" y="92" fill="#f0fdf4" font-family="Inter,Arial,sans-serif" font-size="46" font-weight="700">Earn or Halt</text>
+  <text x="74" y="132" fill="#c5dfce" font-family="Inter,Arial,sans-serif" font-size="22">Resilient release bytes. Mortal local economics.</text>
+  <g filter="url(#shadow)">
+    <rect x="70" y="205" width="300" height="190" rx="20" fill="#183021" stroke="#86efac" stroke-width="2"/>
+    <text x="100" y="252" fill="#86efac" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700">SIGNED RELEASE</text>
+    <text x="100" y="298" fill="#f0fdf4" font-family="Inter,Arial,sans-serif" font-size="25" font-weight="600">fetch → hash</text>
+    <text x="100" y="335" fill="#c5dfce" font-family="Inter,Arial,sans-serif" font-size="18">signature gate</text>
+    <text x="100" y="365" fill="#c5dfce" font-family="Inter,Arial,sans-serif" font-size="18">safe archive extraction</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="450" y="205" width="300" height="190" rx="20" fill="#183021" stroke="#fbbf24" stroke-width="2"/>
+    <text x="480" y="252" fill="#fcd34d" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700">ECONOMIC POLICY</text>
+    <text x="480" y="298" fill="#f0fdf4" font-family="Inter,Arial,sans-serif" font-size="25" font-weight="600">continue / halt</text>
+    <text x="480" y="335" fill="#c5dfce" font-family="Inter,Arial,sans-serif" font-size="18">credit • revenue • cost</text>
+    <text x="480" y="365" fill="#c5dfce" font-family="Inter,Arial,sans-serif" font-size="18">persistent SQLite decision</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="830" y="205" width="300" height="190" rx="20" fill="#183021" stroke="#60a5fa" stroke-width="2"/>
+    <text x="860" y="252" fill="#93c5fd" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700">LOCAL SERVICE</text>
+    <text x="860" y="298" fill="#f0fdf4" font-family="Inter,Arial,sans-serif" font-size="25" font-weight="600">SQLite + HTTP</text>
+    <text x="860" y="335" fill="#c5dfce" font-family="Inter,Arial,sans-serif" font-size="18">mock by default</text>
+    <text x="860" y="365" fill="#c5dfce" font-family="Inter,Arial,sans-serif" font-size="18">draft generation API</text>
+  </g>
+  <path d="M370 300h80M750 300h80" stroke="#dcfce7" stroke-width="4" stroke-linecap="round"/>
+  <path d="m435 286 16 14-16 14M815 286l16 14-16 14" fill="none" stroke="#dcfce7" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="72" y="500" fill="#f0fdf4" font-family="Inter,Arial,sans-serif" font-size="23" font-weight="600">A local MVP, not a payment or business guarantee</text>
+  <text x="72" y="540" fill="#c5dfce" font-family="Inter,Arial,sans-serif" font-size="18">Customer payment is API accounting; public providers and deployment are separate limits.</text>
+</svg>

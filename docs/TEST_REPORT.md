@@ -1,33 +1,45 @@
 # Test report
 
-Timestamp: 2026-08-08 01:56:03 UTC+3
+Проверка выполнена 2026-08-11 на свежем shallow clone main в staging
+directory.
 
-Environment:
+## Passed
 
-- Python 3.13.5
-- OpenSSL 3.5.5
-- POSIX shell syntax checked with `sh -n`
+~~~
+python3 -m unittest discover -s tests -v
+Ran 10 tests ... OK
+~~~
 
-Passed:
+Проверены policy decisions, mock provider, SQLite job/ledger lifecycle,
+persistent halt и безопасная распаковка traversal-sensitive tar archive.
 
-- Python bytecode compilation for runtime, bootstrap helpers, tools and tests.
-- 10 unit tests: economic policy, persistent halt, SQLite ledger/job lifecycle, mock provider and safe tar extraction.
-- End-to-end signed bootstrap smoke test:
-  1. generate secp256k1 release key;
-  2. build deterministic `release.tar.gz`;
-  3. create signed manifest;
-  4. resolve local pointer;
-  5. verify SHA-256 and ECDSA;
-  6. install immutable release;
-  7. start API;
-  8. execute one profitable job;
-  9. verify 29 cents revenue, 1 cent cost and 28 cents profit;
-  10. request persistent halt and observe process exit;
-  11. modify one artifact byte and verify bootstrap rejection.
+~~~
+./scripts/smoke-test.sh
+smoke test passed
+~~~
 
-Not exercised in this environment:
+Smoke path создаёт временный secp256k1 release key, deterministic
+release.tar.gz и local file manifest; затем:
 
-- A live Ethereum transaction or paid RPC endpoint.
-- A live IPFS/IPNS publish operation; the adapters and local pointer path are included.
-- Docker image build, because Docker was not available in the execution environment.
-- A paid OpenAI-compatible provider; the deterministic mock provider was used.
+1. bootstrap читает manifest;
+2. fetches file:// artifact;
+3. сверяет SHA-256 и OpenSSL signature;
+4. safe-extract/install'ит release;
+5. запускает mock API;
+6. выполняет одну job: 29 cents revenue, 1 cent cost, 28 cents profit;
+7. принимает POST /v1/halt и наблюдает остановку процесса;
+8. отвергает тот же manifest после добавления bytes к artifact.
+
+Тесты и smoke не создают публикацию во внешней сети.
+
+## Не проверялось в этом pass
+
+- live Ethereum transaction или оплаченный RPC;
+- live IPFS/IPNS publication и pin persistence;
+- Docker image build;
+- платный OpenAI-compatible provider;
+- независимая подпись клиента за revenue;
+- production reverse proxy, TLS и public authentication deployment.
+
+Поэтому тестовый результат подтверждает локальный MVP и signed bootstrap
+canary, но не финансовую или production-ready гарантию.
